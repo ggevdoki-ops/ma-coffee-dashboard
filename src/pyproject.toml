@@ -1,0 +1,9 @@
+[project]
+name = "ma-coffee-dashboard"
+version = "1.0.0"
+dependencies = [
+    "requests>=2.32.0",
+]
+
+[tool.vercel]
+entrypoint = "api.status:handler"

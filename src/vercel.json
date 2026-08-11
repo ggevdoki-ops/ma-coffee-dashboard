@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "functions": {
+    "api/status.py": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    { "src": "/api/status", "dest": "/api/status.py" }
+  ],
+  "github": {
+    "enabled": false
+  }
+}

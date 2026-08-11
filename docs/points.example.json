@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Coffee 42",
+    "base_url": "https://coffee42.fusionpos.ru",
+    "username": "your-email@example.com",
+    "password": "your-password",
+    "point_id": 1,
+    "timezone_offset": 0,
+    "schedule": {
+      "open": "08:00",
+      "close": "21:00",
+      "weekend_open": "10:00",
+      "weekend_close": "22:00",
+      "holidays": []
+    }
+  },
+  {
+    "name": "ALT Coffee 1",
+    "base_url": "https://alternative.fusionpos.ru",
+    "username": "your-email@example.com",
+    "password": "your-password",
+    "point_id": 1,
+    "timezone_offset": 0,
+    "schedule": {
+      "open": "08:00",
+      "close": "21:00",
+      "weekend_open": "10:00",
+      "weekend_close": "22:00",
+      "holidays": []
+    }
+  },
+  {
+    "name": "ALT Coffee 2",
+    "base_url": "https://alter2.fusionpos.ru",
+    "username": "your-email@example.com",
+    "password": "your-password",
+    "point_id": 1,
+    "timezone_offset": 0,
+    "schedule": {
+      "open": "08:00",
+      "close": "21:00",
+      "weekend_open": "10:00",
+      "weekend_close": "22:00",
+      "holidays": []
+    }
+  },
+  {
+    "name": "Вместе Лучше",
+    "base_url": "https://vmeste-luchshe.fusionpos.ru",
+    "username": "your-login",
+    "password": "your-password",
+    "point_id": 1,
+    "timezone_offset": 0,
+    "schedule": {
+      "open": "08:00",
+      "close": "21:00",
+      "weekend_open": "08:00",
+      "weekend_close": "21:00",
+      "holidays": []
+    }
+  }
+]

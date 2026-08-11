@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Vercel
+.vercel/
+
+# Конфиг с паролями
+points.json
+!docs/points.example.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Локальные артефакты разработки
+tmp/
+local-test*.py
+run_local.py
