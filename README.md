@@ -39,8 +39,21 @@ ma-coffee-dashboard/
 │       ├── points.md            # схема points.json
 │       ├── api-response.md      # формат JSON-ответа
 │       └── fusionpos-api.md     # что и как дёргаем из API
+├── .claude/
+│   └── skills/
+│       └── ma-coffee-dashboard/
+│           └── SKILL.md  # скилл для Claude Code
 └── README.md             # этот файл
 ```
+
+## Установка скилла в Claude Code
+
+В репозитории лежит файл [`.claude/skills/ma-coffee-dashboard/SKILL.md`](./.claude/skills/ma-coffee-dashboard/SKILL.md). Чтобы Claude Code подхватывал его при работе с этим проектом:
+
+1. **Через `.claude/settings.json` проекта** (рекомендуется) — добавить в настройках проекта ссылку на скилл из этого репо.
+2. **Глобально** — скопировать файл в `~/.claude/skills/ma-coffee-dashboard/SKILL.md`.
+
+Скилл автоматически активируется, когда задача касается дашборда, FusionPOS API или точек Coffee 42 / ALT Coffee 1 / ALT Coffee 2 / Вместе Лучше.
 
 ## Конфигурация точек
 
