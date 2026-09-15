@@ -217,24 +217,6 @@ function renderPointDetail(d) {
   totals.appendChild(totalsBar);
   body.appendChild(totals);
 
-  // маржа (только точки с cost_price в POS)
-  if (d.margin) {
-    const m = section('МАРЖА · 7 ДНЕЙ', 'по себестоимости из POS, без зарплат и аренды');
-    const mBar = el('div', 'pd-totals');
-    const addM = (k, v, cls) => {
-      const t = el('div', 'pd-total');
-      t.appendChild(el('span', 'pt-k', k));
-      t.appendChild(el('span', 'pt-v' + (cls ? ' ' + cls : ''), v));
-      mBar.appendChild(t);
-    };
-    addM('выручка по чекам', fmtRub(d.margin.revenue) + ' ₽');
-    addM('себестоимость', fmtRub(d.margin.cost) + ' ₽');
-    addM('маржа', fmtRub(d.margin.margin) + ' ₽', 'good');
-    addM('маржа %', d.margin.margin_pct + '%', 'good');
-    m.appendChild(mBar);
-    body.appendChild(m);
-  }
-
   // история смен
   const sh = section('ИСТОРИЯ СМЕН · ' + d.days + ' ДНЕЙ');
   sh.appendChild(buildShiftTable(d));
@@ -296,13 +278,15 @@ function deltaClass(kind, min) {
 function buildShiftTable(d) {
   if (!d.shifts || !d.shifts.length) return el('div', 'pd-note', 'смен за период нет');
   const wrap = el('div', 'tbl-wrap');
-  const showCost = d.shifts.some(s => s.cost_total != null);
   const table = el('table', 'tbl');
   const thead = el('thead');
   const trh = el('tr');
-  for (const h of ['Дата', 'Бариста', 'Открытие', 'Закрытие', 'Выручка', 'Чеки', 'Ср.чек', '₽/час']
-      .concat(showCost ? ['Себест.'] : [])) {
-    trh.appendChild(el('th', null, h));
+  const shiftCols = [
+    ['Дата', ''], ['Бариста', ''], ['Открытие', ''], ['Закрытие', ''],
+    ['Выручка', 'num'], ['Чеки', 'num'], ['Ср.чек', 'num'], ['₽/час', 'num'],
+  ];
+  for (const [h, cls] of shiftCols) {
+    trh.appendChild(el('th', cls || null, h));
   }
   thead.appendChild(trh);
   table.appendChild(thead);
@@ -338,7 +322,6 @@ function buildShiftTable(d) {
     tr.appendChild(el('td', 'td-num', s.orders_count || '—'));
     tr.appendChild(el('td', 'td-num', s.avg_check ? fmtRub(s.avg_check) : '—'));
     tr.appendChild(el('td', 'td-num', s.rev_per_hour ? fmtRub(s.rev_per_hour) : '—'));
-    if (showCost) tr.appendChild(el('td', 'td-num', s.cost_total != null ? fmtRub(s.cost_total) : '—'));
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -373,8 +356,12 @@ function buildBaristaTable(barista) {
   const table = el('table', 'tbl');
   const thead = el('thead');
   const trh = el('tr');
-  for (const h of ['Бариста', 'Смены', 'Часы', 'Чеков/смену', 'Ср.чек', 'Выручка', '₽/час']) {
-    trh.appendChild(el('th', null, h));
+  const baristaCols = [
+    ['Бариста', ''], ['Смены', 'num'], ['Часы', 'num'], ['Чеков/смену', 'num'],
+    ['Ср.чек', 'num'], ['Выручка', 'num'], ['₽/час', 'num'],
+  ];
+  for (const [h, cls] of baristaCols) {
+    trh.appendChild(el('th', cls || null, h));
   }
   thead.appendChild(trh);
   table.appendChild(thead);
