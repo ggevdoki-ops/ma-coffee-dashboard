@@ -282,8 +282,8 @@ function buildShiftTable(d) {
   const thead = el('thead');
   const trh = el('tr');
   const shiftCols = [
-    ['Дата', ''], ['Бариста', ''], ['Открытие', ''], ['Закрытие', ''],
-    ['Выручка', 'num'], ['Чеки', 'num'], ['Ср.чек', 'num'], ['₽/час', 'num'],
+    ['Дата', ''], ['Бариста', ''], ['Выручка', 'num'], ['Чеки', 'num'],
+    ['Средний чек', 'num'], ['₽/час', 'num'], ['Открытие', ''], ['Закрытие', ''],
   ];
   for (const [h, cls] of shiftCols) {
     trh.appendChild(el('th', cls || null, h));
@@ -299,6 +299,11 @@ function buildShiftTable(d) {
     if (s.is_open) dateCell.appendChild(el('span', 'live-dot td-live'));
     tr.appendChild(dateCell);
     tr.appendChild(el('td', null, s.barista || '—'));
+
+    tr.appendChild(el('td', 'td-num', fmtRub(s.revenue)));
+    tr.appendChild(el('td', 'td-num', s.orders_count || '—'));
+    tr.appendChild(el('td', 'td-num', s.avg_check ? fmtRub(s.avg_check) : '—'));
+    tr.appendChild(el('td', 'td-num', s.rev_per_hour ? fmtRub(s.rev_per_hour) : '—'));
 
     const openTd = el('td', 'td-time');
     openTd.appendChild(el('span', null, s.open_time || '—'));
@@ -318,10 +323,6 @@ function buildShiftTable(d) {
     }
     tr.appendChild(closeTd);
 
-    tr.appendChild(el('td', 'td-num', fmtRub(s.revenue)));
-    tr.appendChild(el('td', 'td-num', s.orders_count || '—'));
-    tr.appendChild(el('td', 'td-num', s.avg_check ? fmtRub(s.avg_check) : '—'));
-    tr.appendChild(el('td', 'td-num', s.rev_per_hour ? fmtRub(s.rev_per_hour) : '—'));
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -357,8 +358,8 @@ function buildBaristaTable(barista) {
   const thead = el('thead');
   const trh = el('tr');
   const baristaCols = [
-    ['Бариста', ''], ['Смены', 'num'], ['Часы', 'num'], ['Чеков/смену', 'num'],
-    ['Ср.чек', 'num'], ['Выручка', 'num'], ['₽/час', 'num'],
+    ['Бариста', ''], ['Смены', 'num'], ['Выручка', 'num'], ['Средний чек', 'num'],
+    ['₽/час', 'num'], ['Чеков/смену', 'num'],
   ];
   for (const [h, cls] of baristaCols) {
     trh.appendChild(el('th', cls || null, h));
@@ -370,11 +371,10 @@ function buildBaristaTable(barista) {
     const tr = el('tr');
     tr.appendChild(el('td', null, b.name));
     tr.appendChild(el('td', 'td-num', b.shifts));
-    tr.appendChild(el('td', 'td-num', b.hours != null ? b.hours : '—'));
-    tr.appendChild(el('td', 'td-num', b.checks_per_shift != null ? b.checks_per_shift : '—'));
-    tr.appendChild(el('td', 'td-num', b.avg_check ? fmtRub(b.avg_check) : '—'));
     tr.appendChild(el('td', 'td-num', fmtRub(b.revenue)));
+    tr.appendChild(el('td', 'td-num', b.avg_check ? fmtRub(b.avg_check) : '—'));
     tr.appendChild(el('td', 'td-num', b.rev_per_hour ? fmtRub(b.rev_per_hour) : '—'));
+    tr.appendChild(el('td', 'td-num', b.checks_per_shift != null ? b.checks_per_shift : '—'));
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
