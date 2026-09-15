@@ -145,6 +145,282 @@ function render(d, full) {
   u.textContent = 'обновлено: ' + d.updated_at + ' МСК';
 }
 
+/* ---------- окно точки ---------- */
+const MONTHS_RU = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+let modalPointName = null;
+
+function openPointModal(name) {
+  modalPointName = name;
+  $('#modal-point-name').textContent = name;
+  $('#modal-period').textContent = 'за 7 дней · загружаем…';
+  $('#modal-body').innerHTML = '<div class="modal-loading">загружаем данные…</div>';
+  $('#point-modal').classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  loadPointDetail(name);
+}
+
+function closePointModal() {
+  modalPointName = null;
+  $('#point-modal').classList.add('hidden');
+  document.body.classList.remove('modal-open');
+}
+
+async function loadPointDetail(name) {
+  const body = $('#modal-body');
+  const pin = getPin();
+  const url = '/api/point?name=' + encodeURIComponent(name)
+    + (pin ? '&pin=' + encodeURIComponent(pin) : '');
+  body.innerHTML = '<div class="modal-loading">загружаем данные…</div>';
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (r.status === 401) {
+      closePointModal();
+      clearPin();
+      showGate('Код больше не действует');
+      return;
+    }
+    if (!r.ok) throw new Error('server ' + r.status);
+    const d = await r.json();
+    if (modalPointName !== name) return; // окно уже закрыли или переключили
+    renderPointDetail(d);
+  } catch (err) {
+    if (modalPointName !== name) return;
+    body.innerHTML = '<div class="modal-loading modal-err">нет данных — ' +
+      (err.message || 'ошибка сети') + '. Попробуйте ещё раз (↻).</div>';
+  }
+}
+
+function section(tag, title) {
+  const s = el('section', 'ps');
+  s.appendChild(el('div', 'ps-tag', tag));
+  if (title) s.appendChild(el('div', 'ps-title', title));
+  return s;
+}
+
+function renderPointDetail(d) {
+  const body = $('#modal-body');
+  body.innerHTML = '';
+
+  // сводка за 7 дней
+  const totals = section('СВОДКА · 7 ДНЕЙ');
+  const totalsBar = el('div', 'pd-totals');
+  const addTotal = (k, v) => {
+    const t = el('div', 'pd-total');
+    t.appendChild(el('span', 'pt-k', k));
+    t.appendChild(el('span', 'pt-v', v));
+    totalsBar.appendChild(t);
+  };
+  addTotal('выручка', fmtRub(d.totals.revenue) + ' ₽');
+  addTotal('чеков', fmtRub(d.totals.checks));
+  addTotal('средний чек', d.totals.avg_check ? fmtRub(d.totals.avg_check) + ' ₽' : '—');
+  if (d.totals.discount_sum > 0) addTotal('скидки', '−' + fmtRub(d.totals.discount_sum) + ' ₽');
+  totals.appendChild(totalsBar);
+  body.appendChild(totals);
+
+  // маржа (только точки с cost_price в POS)
+  if (d.margin) {
+    const m = section('МАРЖА · 7 ДНЕЙ', 'по себестоимости из POS, без зарплат и аренды');
+    const mBar = el('div', 'pd-totals');
+    const addM = (k, v, cls) => {
+      const t = el('div', 'pd-total');
+      t.appendChild(el('span', 'pt-k', k));
+      t.appendChild(el('span', 'pt-v' + (cls ? ' ' + cls : ''), v));
+      mBar.appendChild(t);
+    };
+    addM('выручка по чекам', fmtRub(d.margin.revenue) + ' ₽');
+    addM('себестоимость', fmtRub(d.margin.cost) + ' ₽');
+    addM('маржа', fmtRub(d.margin.margin) + ' ₽', 'good');
+    addM('маржа %', d.margin.margin_pct + '%', 'good');
+    m.appendChild(mBar);
+    body.appendChild(m);
+  }
+
+  // история смен
+  const sh = section('ИСТОРИЯ СМЕН · ' + d.days + ' ДНЕЙ');
+  sh.appendChild(buildShiftTable(d));
+  body.appendChild(sh);
+
+  // загрузка по часам
+  const hr = section('ЗАГРУЗКА ПО ЧАСАМ · 7 ДНЕЙ', 'выручка и чеки по часу закрытия');
+  hr.appendChild(buildHourly(d.hourly));
+  body.appendChild(hr);
+
+  // бариста
+  const ba = section('БАРИСТА · 7 ДНЕЙ');
+  ba.appendChild(buildBaristaTable(d.barista));
+  body.appendChild(ba);
+
+  // акции
+  if (d.discounts && d.discounts.length) {
+    const di = section('АКЦИИ И СКИДКИ');
+    di.appendChild(buildDiscounts(d.discounts, d.totals.revenue));
+    body.appendChild(di);
+  }
+
+  // возвраты/отмены
+  if (d.other_status && d.other_status.total_count > 0) {
+    const os = d.other_status;
+    const parts = Object.entries(os.by_status)
+      .map(([st, n]) => `${statusRu(st)} — ${n}`);
+    const ro = section('ВОЗВРАТЫ И ОТМЕНЫ');
+    const row = el('div', 'pd-note', `${parts.join(' · ')} · на сумму ${fmtRub(os.total_money)} ₽`);
+    ro.appendChild(row);
+    body.appendChild(ro);
+  }
+
+  // шапка окна: период + время генерации
+  $('#modal-period').textContent =
+    `${d.days} дней · данные на ${d.generated_at.slice(11, 16)} МСК`;
+}
+
+function statusRu(st) {
+  if (st === 'returned') return 'возвраты';
+  if (st === 'deleted') return 'отмены';
+  return st;
+}
+
+function fmtDelta(min) {
+  if (min == null) return '';
+  const sign = min > 0 ? '+' : '−';
+  return sign + Math.abs(min) + 'м';
+}
+
+function deltaClass(kind, min) {
+  // kind: 'open' — позднее открытие плохо; 'close' — раннее закрытие плохо
+  if (min == null) return '';
+  if (kind === 'open' && min > 15) return 'bad';
+  if (kind === 'close' && min < -10) return 'warn';
+  return '';
+}
+
+function buildShiftTable(d) {
+  if (!d.shifts || !d.shifts.length) return el('div', 'pd-note', 'смен за период нет');
+  const wrap = el('div', 'tbl-wrap');
+  const showCost = d.shifts.some(s => s.cost_total != null);
+  const table = el('table', 'tbl');
+  const thead = el('thead');
+  const trh = el('tr');
+  for (const h of ['Дата', 'Бариста', 'Открытие', 'Закрытие', 'Выручка', 'Чеки', 'Ср.чек', '₽/час']
+      .concat(showCost ? ['Себест.'] : [])) {
+    trh.appendChild(el('th', null, h));
+  }
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  for (const s of d.shifts) {
+    const tr = el('tr');
+    const [y, m, day] = s.date.split('-').map(Number);
+    const dateCell = el('td', 'td-date',
+      `${String(day).padStart(2, '0')}.${String(m).padStart(2, '0')} ${s.weekday}`);
+    if (s.is_open) dateCell.appendChild(el('span', 'live-dot td-live'));
+    tr.appendChild(dateCell);
+    tr.appendChild(el('td', null, s.barista || '—'));
+
+    const openTd = el('td', 'td-time');
+    openTd.appendChild(el('span', null, s.open_time || '—'));
+    const openDelta = el('span', 'delta ' + deltaClass('open', s.open_delta_min), fmtDelta(s.open_delta_min));
+    openDelta.title = 'отклонение от графика';
+    openTd.appendChild(openDelta);
+    tr.appendChild(openTd);
+
+    const closeTd = el('td', 'td-time');
+    if (s.close_time) {
+      closeTd.appendChild(el('span', null, s.close_time));
+      const cd = el('span', 'delta ' + deltaClass('close', s.close_delta_min), fmtDelta(s.close_delta_min));
+      cd.title = 'отклонение от графика';
+      closeTd.appendChild(cd);
+    } else {
+      closeTd.appendChild(el('span', 'open-tag', s.is_open ? 'открыта' : '—'));
+    }
+    tr.appendChild(closeTd);
+
+    tr.appendChild(el('td', 'td-num', fmtRub(s.revenue)));
+    tr.appendChild(el('td', 'td-num', s.orders_count || '—'));
+    tr.appendChild(el('td', 'td-num', s.avg_check ? fmtRub(s.avg_check) : '—'));
+    tr.appendChild(el('td', 'td-num', s.rev_per_hour ? fmtRub(s.rev_per_hour) : '—'));
+    if (showCost) tr.appendChild(el('td', 'td-num', s.cost_total != null ? fmtRub(s.cost_total) : '—'));
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function buildHourly(hourly) {
+  if (!hourly || !hourly.length) return el('div', 'pd-note', 'нет данных за период');
+  const maxRev = Math.max(...hourly.map(h => h.revenue), 1);
+  const wrap = el('div', 'hist');
+  for (const h of hourly) {
+    const col = el('div', 'hist-col');
+    const pct = Math.max(2, Math.round(h.revenue / maxRev * 100));
+    const bar = el('div', 'hist-bar');
+    bar.style.height = pct + '%';
+    bar.title = `${String(h.hour).padStart(2, '0')}:00 — ${fmtRub(h.revenue)} ₽ · ${h.checks} чеков`;
+    const num = el('div', 'hist-num', h.revenue >= 1000 ? fmtRubK(h.revenue) : String(Math.round(h.revenue)));
+    col.appendChild(num);
+    const barZone = el('div', 'hist-barzone');
+    barZone.appendChild(bar);
+    col.appendChild(barZone);
+    col.appendChild(el('div', 'hist-hour', String(h.hour).padStart(2, '0')));
+    wrap.appendChild(col);
+  }
+  return wrap;
+}
+
+function buildBaristaTable(barista) {
+  if (!barista || !barista.length) return el('div', 'pd-note', 'нет данных за период');
+  const wrap = el('div', 'tbl-wrap');
+  const table = el('table', 'tbl');
+  const thead = el('thead');
+  const trh = el('tr');
+  for (const h of ['Бариста', 'Смены', 'Часы', 'Чеков/смену', 'Ср.чек', 'Выручка', '₽/час']) {
+    trh.appendChild(el('th', null, h));
+  }
+  thead.appendChild(trh);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  for (const b of barista) {
+    const tr = el('tr');
+    tr.appendChild(el('td', null, b.name));
+    tr.appendChild(el('td', 'td-num', b.shifts));
+    tr.appendChild(el('td', 'td-num', b.hours != null ? b.hours : '—'));
+    tr.appendChild(el('td', 'td-num', b.checks_per_shift != null ? b.checks_per_shift : '—'));
+    tr.appendChild(el('td', 'td-num', b.avg_check ? fmtRub(b.avg_check) : '—'));
+    tr.appendChild(el('td', 'td-num', fmtRub(b.revenue)));
+    tr.appendChild(el('td', 'td-num', b.rev_per_hour ? fmtRub(b.rev_per_hour) : '—'));
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function buildDiscounts(discounts, revenue7) {
+  const wrap = el('div', 'disc-list');
+  let totalChecks = 0;
+  let totalSum = 0;
+  for (const dd of discounts) {
+    const row = el('div', 'disc-row');
+    row.appendChild(el('span', 'disc-name', dd.name));
+    const mid = el('span', 'disc-mid');
+    mid.appendChild(el('span', null, `${dd.checks} чеков`));
+    if (revenue7 > 0) {
+      mid.appendChild(el('span', 'disc-share',
+        ` ${(dd.revenue / revenue7 * 100).toFixed(1)}% выручки`));
+    }
+    row.appendChild(mid);
+    row.appendChild(el('span', 'disc-sum', '−' + fmtRub(dd.sum) + ' ₽'));
+    wrap.appendChild(row);
+    totalChecks += dd.checks;
+    totalSum += dd.sum;
+  }
+  const total = el('div', 'disc-total');
+  total.appendChild(el('span', null, `всего по акциям: ${totalChecks} чеков`));
+  total.appendChild(el('span', 'disc-sum', '−' + fmtRub(totalSum) + ' ₽'));
+  wrap.appendChild(total);
+  return wrap;
+}
+
 function formatDate(iso, wd) {
   const months = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
   const [y, m, day] = iso.split('-').map(Number);
@@ -216,6 +492,10 @@ function renderPoints(points) {
 
     const ordersBar = buildOrdersBar(t);
     card.appendChild(ordersBar);
+
+    card.classList.add('clickable');
+    card.title = 'открыть окно точки';
+    card.addEventListener('click', () => openPointModal(p.name));
 
     root.appendChild(card);
   }
@@ -310,6 +590,18 @@ function renderAlerts(alerts) {
     root.appendChild(row);
   }
 }
+
+/* ---------- окно точки: события ---------- */
+$('#modal-close').addEventListener('click', closePointModal);
+$('#modal-refresh').addEventListener('click', () => {
+  if (modalPointName) loadPointDetail(modalPointName);
+});
+$('#point-modal').addEventListener('click', (e) => {
+  if (e.target.dataset && e.target.dataset.close) closePointModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closePointModal();
+});
 
 /* ---------- старт ---------- */
 (function init() {

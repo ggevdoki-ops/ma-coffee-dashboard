@@ -1,6 +1,7 @@
 # Схема ответа API
 
-Бэкенд отдаёт JSON по `GET /api/status`. Если задан env `DASHBOARD_PIN`, требуется параметр `?pin=XXXX` или заголовок `x-pin: XXXX`; иначе — открыто.
+Бэкенд отдаёт JSON по `GET /api/status` (дашборд) и `GET /api/point?name=<имя>` (окно точки за 7 дней).
+Если задан env `DASHBOARD_PIN`, требуется параметр `?pin=XXXX` или заголовок `x-pin: XXXX`; иначе — открыто.
 
 ## Верхний уровень
 
@@ -124,7 +125,122 @@
 
 - `200` — JSON-ответ.
 - `401` — неверный PIN (если `DASHBOARD_PIN` задан).
-- `404` — путь не `/api/status` и не статика.
+- `404` — путь не `/api/status` / `/api/point` и не статика; для `/api/point` — также если точка не найдена по имени.
 - `500` — внутренняя ошибка (например, не задан `POINTS_JSON`). В теле: `{"error": "<repr>"}`.
+
+Статика (`/`, `/index.html`, `/css/style.css`, `/js/app.js`) отдаётся без PIN и без авторизации, с `Cache-Control: no-cache`.
+
+---
+
+# Окно точки: `GET /api/point?name=<имя>`
+
+Данные одной точки за 7 дней (`today-6 .. today`). Источник: смены `/api/v2/change` + заказы `/api/v2/orders` по `changeIds` (size=5000). Логин — с одним ретраем (FusionPOS иногда троттлит).
+
+## Верхний уровень
+
+```json
+{
+  "name": "Вместе Лучше",
+  "generated_at": "2026-09-15 13:19:00",
+  "days": 7,
+  "totals": { "revenue": 460294.5, "checks": 433, "avg_check": 1063.04, "discount_sum": 5955.5 },
+  "shifts": [ ... ],
+  "hourly": [ ... ],
+  "barista": [ ... ],
+  "discounts": [ ... ],
+  "other_status": { ... },
+  "margin": { ... }
+}
+```
+
+Все агрегаты по заказам считаются только по `status = "paid"` с `total_money > 0`.
+
+### `totals`
+
+- `revenue` — сумма чеков (paid, nonzero) за 7 дней. Не совпадает с суммой `change.revenue` — та может включать внечековые начисления.
+- `checks` — число чеков.
+- `avg_check` — `revenue / checks`.
+- `discount_sum` — сумма скидок: `total_menu_money − total_money` по чекам со скидкой.
+
+### `shifts[]` (отсортированы по дате убыв.)
+
+```json
+{
+  "shift_id": 612,
+  "date": "2026-09-09",
+  "weekday": "СР",
+  "barista": "Кассир",
+  "open_time": "07:49",
+  "close_time": "20:58",
+  "is_open": false,
+  "open_delta_min": -11,
+  "close_delta_min": -2,
+  "revenue": 88787.0,
+  "revenue_orders": 90337.0,
+  "orders_count": 60,
+  "avg_check": 1505.62,
+  "rev_per_hour": 6751.86,
+  "discount_sum": 913.0,
+  "cost_total": 19233.95,
+  "duration_hours": 13.15
+}
+```
+
+- `open_delta_min` / `close_delta_min` — отклонение факта от графика в минутах (со знаком: `+` позже графика). `null`, если график не задан.
+- `revenue` — из `change.revenue`; `revenue_orders` — сумма чеков смены.
+- `rev_per_hour` — `revenue / длительность`; для открытой смены длительность считается до «сейчас» (минимум 0.5 ч).
+- `cost_total` — сумма `cost_price` по чекам смены; `null`, если POS не отдаёт себестоимость (все точки, кроме «Вместе Лучше»).
+
+### `hourly`
+
+Выручка и чеки по часу закрытия чека за 7 дней: `[{ "hour": 9, "revenue": 51464.0, "checks": 33 }, ...]`. Отсортировано по часу; часы без чеков отсутствуют.
+
+### `barista`
+
+Слияние двух источников: смены (`user.firstname`) и заказы (`waiterName`). Очистка имени: суффикс «Бариста» отрезается, задвоенные имена («Кассир Кассир») схлопываются.
+
+```json
+{
+  "name": "Кассир",
+  "shifts": 7,
+  "hours": 83.8,
+  "checks": 433,
+  "checks_per_shift": 61.9,
+  "revenue": 460294.5,
+  "avg_check": 1063.04,
+  "rev_per_hour": 5494.09
+}
+```
+
+### `discounts`
+
+Только чеки, где скидка реально съела деньги (`total_menu_money − total_money > 0`).
+
+```json
+{ "name": "Яндекс", "checks": 7, "sum": 3286.5, "revenue": 6103.5 }
+```
+
+### `other_status`
+
+Возвраты и отмены за 7 дней. Незакрытые заказы (`active` и т.п.) **не** считаются.
+
+```json
+{ "by_status": { "deleted": 3 }, "total_count": 3, "total_money": 0.0 }
+```
+
+### `margin`
+
+`null`, если в заказах нет ненулевого `cost_price`. Иначе:
+
+```json
+{
+  "revenue": 460294.5,
+  "cost": 104213.06,
+  "margin": 356081.44,
+  "margin_pct": 77.4
+}
+```
+
+Себестоимость из POS, без зарплат, аренды и прочих накладных — не полная маржа бизнеса.
 
 Статика (`/`, `/index.html`, `/css/style.css`, `/js/app.js`) отдаётся без PIN и без авторизации, с `Cache-Control: no-cache`.

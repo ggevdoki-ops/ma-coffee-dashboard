@@ -6,7 +6,8 @@
     }
   },
   "routes": [
-    { "src": "/api/status", "dest": "/api/status.py" }
+    { "src": "/api/status", "dest": "/api/status.py" },
+    { "src": "/api/point", "dest": "/api/status.py" }
   ],
   "github": {
     "enabled": false
