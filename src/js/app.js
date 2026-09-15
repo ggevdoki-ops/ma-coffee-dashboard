@@ -148,12 +148,21 @@ function render(d, full) {
 /* ---------- окно точки ---------- */
 const MONTHS_RU = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
 let modalPointName = null;
+let modalScrollY = 0;
 
 function openPointModal(name) {
   modalPointName = name;
   $('#modal-point-name').textContent = name;
   $('#modal-period').textContent = 'за 7 дней · загружаем…';
   $('#modal-body').innerHTML = '<div class="modal-loading">загружаем данные…</div>';
+  // iOS Safari: overflow:hidden на body не держит прокрутку — фиксируем body,
+  // иначе fixed-модалка уезжает за адресную строку
+  modalScrollY = window.scrollY;
+  document.body.style.position = 'fixed';
+  document.body.style.top = (-modalScrollY) + 'px';
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
   $('#point-modal').classList.remove('hidden');
   document.body.classList.add('modal-open');
   loadPointDetail(name);
@@ -163,6 +172,12 @@ function closePointModal() {
   modalPointName = null;
   $('#point-modal').classList.add('hidden');
   document.body.classList.remove('modal-open');
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  window.scrollTo(0, modalScrollY);
 }
 
 async function loadPointDetail(name) {

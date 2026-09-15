@@ -419,7 +419,7 @@ body.modal-open{overflow:hidden}
 }
 
 @media (max-width:640px){
-  .modal-window{width:100vw; height:100vh; max-height:none; border-width:0 0 0 3px}
+  .modal-window{width:100vw; height:100vh; height:100dvh; max-height:none; border-width:0 0 0 3px}
   .modal-title{font-size:24px}
   .modal-head{padding:12px 14px 10px; gap:8px}
   .modal-btn{min-width:40px; min-height:40px; padding:6px 10px; font-size:20px; text-align:center}
